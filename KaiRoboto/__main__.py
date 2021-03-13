@@ -100,7 +100,7 @@ And the following:
 KAI_IMG = "https://telegra.ph/file/d9f2b5c327e50898a95e8.jpg"
 
 DONATE_STRING = """Hello, glad to hear you want to donate!
- You can support the project via [Telegram](https://t.me/Xlaaf) or by contacting @Xlaaf \
+ You can support the project [Paypal](https://paypal.me/xlaaf) \
  Supporting isnt always financial! \
  Those who cannot provide monetary support are welcome to help us develop the bot at @Erissupport."""
 
