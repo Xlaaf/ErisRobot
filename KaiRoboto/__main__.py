@@ -97,7 +97,7 @@ And the following:
     "" if not ALLOW_EXCL else "\nAll commands can either be used with / or !.\n",
 )
 
-KAI_IMG = "https://telegra.ph/file/d9f2b5c327e50898a95e8.jpg"
+KAI_IMG = "https://telegra.ph/file/2366c292faf913d406c24.mp4"
 
 DONATE_STRING = """Hello, glad to hear you want to donate!
  You can support the project [Paypal](https://paypal.me/xlaaf) \
@@ -208,16 +208,12 @@ def start(update: Update, context: CallbackContext):
 
         else:
             first_name = update.effective_user.first_name
-            update.effective_message.reply_photo(
-                KAI_IMG,
-                PM_START_TEXT.format(
-                    escape_markdown(first_name), escape_markdown(context.bot.first_name)
-                ),
+            update.effective_message.reply_animation(
+                SAITAMA_IMG,
+                caption=PM_START_TEXT.format(escape_markdown(first_name), escape_markdown(context.bot.first_name), OWNER_ID),
                 parse_mode=ParseMode.MARKDOWN,
-                disable_web_page_preview=True,
-                reply_markup=InlineKeyboardMarkup(
-                    [
-                        [
+                reply_markup=InlineKeyboardMarkup(                   
+                          [[
                             InlineKeyboardButton(
                                 text="🌹 Add Eris to your group",
                                 url="t.me/{}?startgroup=true".format(
