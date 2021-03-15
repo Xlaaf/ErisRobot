@@ -227,11 +227,11 @@ def start(update: Update, context: CallbackContext):
                         ],
                         [
                             InlineKeyboardButton(
-                                text="🥀 Support Group", url=f"https://t.me/erissupport"
+                                text="🥀 Support Group", url=f"https://t.me/VohaUnion"
                             ),
                             InlineKeyboardButton(
                                 text="🔔 Updates",
-                                url="https://t.me/erisupdate",
+                                url="https://t.me/VohaUpdate",
                             ),
                         ],
                     ]
