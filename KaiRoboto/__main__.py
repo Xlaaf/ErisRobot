@@ -187,7 +187,13 @@ def start(update: Update, context: CallbackContext):
                     update.effective_chat.id,
                     HELPABLE[mod].__help__,
                     InlineKeyboardMarkup(
-                        [[InlineKeyboardButton(text="Bakku", callback_data="help_back")]]
+                        [
+                            [
+                                InlineKeyboardButton(
+                                    text="Bakku", callback_data="help_back"
+                                )
+                            ]
+                        ]
                     ),
                 )
             elif args[0].lower() == "markdownhelp":
@@ -210,10 +216,15 @@ def start(update: Update, context: CallbackContext):
             first_name = update.effective_user.first_name
             update.effective_message.reply_animation(
                 KAI_IMG,
-                caption=PM_START_TEXT.format(escape_markdown(first_name), escape_markdown(context.bot.first_name), OWNER_ID),
+                caption=PM_START_TEXT.format(
+                    escape_markdown(first_name),
+                    escape_markdown(context.bot.first_name),
+                    OWNER_ID,
+                ),
                 parse_mode=ParseMode.MARKDOWN,
-                reply_markup=InlineKeyboardMarkup(                   
-                          [[
+                reply_markup=InlineKeyboardMarkup(
+                    [
+                        [
                             InlineKeyboardButton(
                                 text="🌹 Add Eris to your group",
                                 url="t.me/{}?startgroup=true".format(
