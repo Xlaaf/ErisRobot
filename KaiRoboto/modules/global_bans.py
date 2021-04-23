@@ -2,20 +2,8 @@ import html
 import time
 from datetime import datetime
 from io import BytesIO
-
-from telegram import ParseMode, Update
-from telegram.error import BadRequest, TelegramError, Unauthorized
-from telegram.ext import (
-    CallbackContext,
-    CommandHandler,
-    Filters,
-    MessageHandler,
-    run_async,
-)
-from telegram.utils.helpers import mention_html
-
-import KaiRoboto.modules.sql.global_bans_sql as sql
 from KaiRoboto.modules.sql.users_sql import get_user_com_chats
+import KaiRoboto.modules.sql.global_bans_sql as sql
 from KaiRoboto import (
     DEV_USERS,
     EVENT_LOGS,
@@ -35,11 +23,17 @@ from KaiRoboto.modules.helper_funcs.chat_status import (
     support_plus,
     user_admin,
 )
-from KaiRoboto.modules.helper_funcs.extraction import (
-    extract_user,
-    extract_user_and_text,
-)
+from KaiRoboto.modules.helper_funcs.extraction import extract_user, extract_user_and_text
 from KaiRoboto.modules.helper_funcs.misc import send_to_list
+from KaiRoboto.modules.sql.users_sql import get_all_chats
+from telegram import ParseMode, Update
+from telegram.error import BadRequest, TelegramError
+from telegram.ext import CallbackContext, CommandHandler, Filters, MessageHandler
+from telegram.utils.helpers import mention_html
+from KaiRoboto.modules.helper_funcs.chat_status import dev_plus
+from spamprotection.sync import SPBClient
+from spamprotection.errors import HostDownError
+from spamwatch.errors import SpamWatchError, Error, UnauthorizedError, NotFoundError, Forbidden, TooManyRequests
 
 GBAN_ENFORCE_GROUP = 6
 
@@ -72,7 +66,30 @@ UNGBAN_ERRORS = {
 }
 
 
-@run_async
+SPB_MODE = True
+client = SPBClient()
+
+@dev_plus
+def spbtoggle(update: Update, context: CallbackContext):
+    global SPB_MODE
+    args = update.effective_message.text.split(None, 1)
+    message = update.effective_message
+    print(SPB_MODE)
+    if len(args) > 1:
+        if args[1] in ("yes", "on"):
+            SPB_MODE = True
+            message.reply_animation("https://telegra.ph/file/a49e7bef1cc664eabcb26.mp4", caption="SpamProtection API bans are now enabled.\nAll hail @Intellivoid.")
+        elif args[1] in ("no", "off"):
+            SPB_MODE = False
+            message.reply_text("SpamProtection API bans are now disabled.")
+    else:
+        if SPB_MODE:
+            message.reply_text("SpamProtection API bans are currently enabled.")
+        else:
+            message.reply_text("SpamProtection API bans are currenty disabled.")
+
+
+
 @support_plus
 def gban(update: Update, context: CallbackContext):
     bot, args = context.bot, context.args
@@ -121,6 +138,10 @@ def gban(update: Update, context: CallbackContext):
 
     if user_id in [777000, 1087968824]:
         message.reply_text("Fool! You can't attack Telegram's native tech!")
+        return
+
+    if user_id == bot.id:
+        message.reply_text("You uhh...want me to kill myself?")
         return
 
     try:
@@ -274,7 +295,6 @@ def gban(update: Update, context: CallbackContext):
         pass  # bot probably blocked by user
 
 
-@run_async
 @support_plus
 def ungban(update: Update, context: CallbackContext):
     bot, args = context.bot, context.args
@@ -387,7 +407,6 @@ def ungban(update: Update, context: CallbackContext):
         message.reply_text(f"Person has been un-gbanned. Took {ungban_time} sec")
 
 
-@run_async
 @support_plus
 def gbanlist(update: Update, context: CallbackContext):
     banned_users = sql.get_gban_list()
@@ -416,20 +435,38 @@ def gbanlist(update: Update, context: CallbackContext):
 def check_and_ban(update, user_id, should_message=True):
 
     chat = update.effective_chat  # type: Optional[Chat]
+    if SPB_MODE:
+        try:
+            status = client.raw_output(int(user_id))
+            try:
+                bl_check = (status["results"]["attributes"]["is_blacklisted"])
+            except:
+                bl_check = False
+
+            if bl_check is True:
+                bl_res = (status["results"]["attributes"]["blacklist_reason"])
+                update.effective_chat.kick_member(user_id)
+                if should_message:
+                    update.effective_message.reply_text(
+                    f"This person was blacklisted on @SpamProtectionBot and has been removed!\nReason: <code>{bl_res}</code>",
+                    parse_mode=ParseMode.HTML,
+                )
+        except HostDownError:
+            log.warning("Spam Protection API is unreachable.")
+
     try:
         sw_ban = sw.get_ban(int(user_id))
-    except:
+    except AttributeError:
+        sw_ban = None
+    except (SpamWatchError, Error, UnauthorizedError, NotFoundError, Forbidden, TooManyRequests) as e:
+        log.warning(f" SpamWatch Error: {e}")
         sw_ban = None
 
     if sw_ban:
         update.effective_chat.kick_member(user_id)
         if should_message:
             update.effective_message.reply_text(
-                f"<b>Alert</b>: this user is globally banned.\n"
-                f"<code>*bans them from here*</code>.\n"
-                f"<b>Appeal chat</b>: {SPAMWATCH_SUPPORT_CHAT}\n"
-                f"<b>User ID</b>: <code>{sw_ban.id}</code>\n"
-                f"<b>Ban Reason</b>: <code>{html.escape(sw_ban.reason)}</code>",
+                f"This person has been detected as a spammer by @SpamWatch and has been removed!\nReason: <code>{sw_ban.reason}</code>",
                 parse_mode=ParseMode.HTML,
             )
         return
@@ -440,7 +477,7 @@ def check_and_ban(update, user_id, should_message=True):
             text = (
                 f"<b>Alert</b>: this user is globally banned.\n"
                 f"<code>*bans them from here*</code>.\n"
-                f"<b>Appeal chat</b>: @{SUPPORT_CHAT}\n"
+                f"<b>Appeal chat</b>: @YorkTownEagleUnion\n"
                 f"<b>User ID</b>: <code>{user_id}</code>"
             )
             user = sql.get_gbanned_user(user_id)
@@ -449,17 +486,13 @@ def check_and_ban(update, user_id, should_message=True):
             update.effective_message.reply_text(text, parse_mode=ParseMode.HTML)
 
 
-@run_async
 def enforce_gban(update: Update, context: CallbackContext):
     # Not using @restrict handler to avoid spamming - just ignore if cant gban.
     bot = context.bot
-    try:
-        restrict_permission = update.effective_chat.get_member(
-            bot.id
-        ).can_restrict_members
-    except Unauthorized:
-        return
-    if sql.does_chat_gban(update.effective_chat.id) and restrict_permission:
+    if (
+        sql.does_chat_gban(update.effective_chat.id)
+        and update.effective_chat.get_member(bot.id).can_restrict_members
+    ):
         user = update.effective_user
         chat = update.effective_chat
         msg = update.effective_message
@@ -479,7 +512,6 @@ def enforce_gban(update: Update, context: CallbackContext):
                 check_and_ban(update, user.id, should_message=False)
 
 
-@run_async
 @user_admin
 def gbanstat(update: Update, context: CallbackContext):
     args = context.args
@@ -510,6 +542,9 @@ def __stats__():
 
 
 def __user_info__(user_id):
+    if user_id in (777000, 1087968824):
+        return ""
+
     is_gbanned = sql.is_user_gbanned(user_id)
     text = "Malicious: <b>{}</b>"
     if user_id in [777000, 1087968824]:
@@ -527,7 +562,7 @@ def __user_info__(user_id):
     else:
         text = text.format("???")
     return text
-
+        
 
 def __migrate__(old_chat_id, new_chat_id):
     sql.migrate_chat(old_chat_id, new_chat_id)
@@ -535,20 +570,24 @@ def __migrate__(old_chat_id, new_chat_id):
 
 def __chat_settings__(chat_id, user_id):
     return f"This chat is enforcing *gbans*: `{sql.does_chat_gban(chat_id)}`."
-
-
-__help__ = f"""
+    
+    
+__help__ =f"""
 *Admins only:*
- • `/antispam <on/off/yes/no>`*:* Will toggle our antispam tech or return your current settings.
-
-Anti-Spam, used by bot devs to ban spammers across all groups. This helps protect \
+• `/antispam <on/off/yes/no>`*:* Will toggle our antispam tech or return your current settings.
+Anti-Spam, used by bot devs to ban spammers across all groups. This helps protect
 you and your groups by removing spam flooders as quickly as possible.
-*Note:* Users can appeal gbans or report spammers at @erissupport
-This also integrates @Spamwatch API to remove Spammers as much as possible from your chatroom!
+*Note:* Users can appeal gbans or report spammers at @VohaUnion
+
+Eris also integrates @Spamwatch and @Intellivoid's SpamProtectionBot API to remove Spammers as much as possible from your chatroom!
 *What is SpamWatch?*
-SpamWatch maintains a large constantly updated ban-list of spambots, trolls, bitcoin spammers and unsavoury characters[.](https://telegra.ph/file/f584b643c6f4be0b1de53.jpg)
+SpamWatch maintains a large constantly updated ban-list of spambots, trolls, bitcoin spammers and unsavoury characters.
 Constantly help banning spammers off from your group automatically So, you wont have to worry about spammers storming your group.
 *Note:* Users can appeal spamwatch bans at @SpamwatchSupport
+
+*What is Spam protection?*
+SpamProtection is the new AI antispam service which makes sure that your chat is free of spambots, scammers, and pedophiles.
+Uses @Intellivoid's Coffeehouse Artificial Engine. Every ban is checked by real trusty people before being finalized.
 """
 
 GBAN_HANDLER = CommandHandler("gban", gban)
@@ -559,6 +598,8 @@ GBAN_STATUS = CommandHandler("antispam", gbanstat, filters=Filters.group)
 
 GBAN_ENFORCER = MessageHandler(Filters.all & Filters.group, enforce_gban)
 
+SPBTOGGLE_HANDLER = CommandHandler("spb", spbtoggle)
+dispatcher.add_handler(SPBTOGGLE_HANDLER)
 dispatcher.add_handler(GBAN_HANDLER)
 dispatcher.add_handler(UNGBAN_HANDLER)
 dispatcher.add_handler(GBAN_LIST)
