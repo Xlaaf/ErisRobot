@@ -33,3 +33,5 @@ cachetools
 ujson
 pretty_errors
 Intellivoid-SPB
+pyrogram
+telethon
