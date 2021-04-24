@@ -56,3 +56,4 @@ Intellivoid-SPB
 nltk
 youtube_search
 youtube_search_python
+pretty_errors
